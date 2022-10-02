@@ -32,7 +32,7 @@ public class FilterCommand extends ArgumentCommand {
         StringBuilder output = new StringBuilder();
         System.out.printf("Elements in the collection containing \"%s\" in the name:\n", getArgument());
         List<Route> filteredRoutes = collection.filterByString(Objects.requireNonNull(getArgument()));
-        filteredRoutes.stream().map(Route::format).forEach((x) -> output.append(x + "\n"));
-        return output.toString();
+        filteredRoutes.stream().map(Route::format).forEach((x) -> output.append(x).append("\n"));
+        return output.toString().strip();
     }
 }

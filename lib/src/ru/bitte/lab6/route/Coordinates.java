@@ -2,6 +2,7 @@ package ru.bitte.lab6.route;
 
 import ru.bitte.lab6.exceptions.ElementConstructionException;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
@@ -9,7 +10,7 @@ import java.util.Objects;
  * are represented by {@code long} fields with the {@code X} field being less than -974 and the {@code Y} field being
  * greater than 926. Otherwise, a {@link ElementConstructionException} is thrown
  */
-public class Coordinates {
+public class Coordinates implements Serializable {
     private final long x; // the max value should be 926
     private final Long y; // the min value should be -974, can't be null
 

@@ -38,7 +38,7 @@ public class RemoveByIDCommand extends Command implements IDCommand {
         StringBuilder output = new StringBuilder();
         try {
             collection.removeByID(id);
-            output.append("Successfully removed the element by ID ").append(getID());
+            output.append("Successfully removed the element by ID.").append(getID());
         } catch (GetByIDException e) {
             output.append("No element with such an ID found.");
         }

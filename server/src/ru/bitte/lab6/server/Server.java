@@ -1,56 +1,46 @@
 package ru.bitte.lab6.server;
 
 import org.xml.sax.SAXException;
+import ru.bitte.lab6.AbstractCommandRequest;
 import ru.bitte.lab6.ArgumentCommandRequest;
-import ru.bitte.lab6.CommandRequest;
 import ru.bitte.lab6.commands.*;
+import ru.bitte.lab6.exceptions.ClientDisconnectedException;
 import ru.bitte.lab6.exceptions.ElementException;
 import ru.bitte.lab6.exceptions.ElementParsingInFileException;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
-import java.util.logging.Level;
+import java.util.logging.FileHandler;
+import java.util.logging.Logger;
 
 public class Server {
-    private int serverPort;
-    private final Scanner in;
+//    private final Scanner in;
     @SuppressWarnings("FieldCanBeLocal")
     private final CollectionKeeper collection;
     private final Parser parser = new Parser();
     private final Map<String, Command> commands;
     private final Deque<String> history;
-    private final ServerConnector connector = new ServerConnector();
+    private final ServerConnector serverConnector;
+    private final Logger logger;
 
-    public void start() throws TransformerException {
-        System.out.println("Starting the server...");
-        connector.startConnection(serverPort);
-        boolean working = true;
-        while (working) {
-            newClient();
-            System.out.print("No clients working right now. Exit? (y): ");
-            if (in.nextLine().equals("y")) {
-                working = false;
-            }
-        }
-        parser.writeToFile(collection.copyCollection(), new File("collectionSavedAt" + LocalDateTime.now()));
-
-    }
-
-    public Server(String fileName, int port) throws TransformerConfigurationException, ParserConfigurationException, ElementParsingInFileException, IOException, SAXException {
-        serverPort = port;
-        in = new Scanner(System.in);
+    public Server(String fileName, int port)
+            throws TransformerConfigurationException, ParserConfigurationException, ElementParsingInFileException,
+            IOException, SAXException {
+//        in = new Scanner(System.in);
         // initialize the collection keeper with a file
         collection = new CollectionKeeper(parser.readFromFile(new File(fileName)));
         // initialize the commands by first getting them in a hashset and then adding to a hashmap in a loop
         history = new ArrayDeque<>(15);
         commands = new HashMap<>();
-        HashSet<Command> tempComs = new HashSet<>();
+        Set<Command> tempComs = new HashSet<>();
         tempComs.add(new AddCommand(collection));
         tempComs.add(new AddIfMinCommand(collection));
         tempComs.add(new ClearCommand(collection));
@@ -65,15 +55,57 @@ public class Server {
         tempComs.add(new ShowCommand(collection));
         tempComs.add(new UpdateCommand(collection));
         tempComs.forEach(command -> commands.put(command.getName(), command));
+        // initialize the server
+        serverConnector = new ServerConnector(port);
+        // initialize logging
+        logger = Logger.getLogger("ru.bitte.lab6.server");
+        String logFile = String.format("server_instance_%s.txt",
+                LocalDateTime.now().format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)))
+                .replace(":", "-").replace(" ", "_");
+        FileHandler logHandler = new FileHandler(logFile);
+        logger.addHandler(logHandler);
     }
 
-    public void newClient() {
+    public void start() throws TransformerException {
+        logger.info("Starting the server...");
         boolean working = true;
         while (working) {
+            newClient();
+        }
+        parser.writeToFile(collection.copyCollection(), new File("collectionSavedAt" + LocalDateTime.now()));
+
+    }
+
+    private void newClient() {
+        boolean working = true;
+        try {
+            serverConnector.startConnection();
+            logger.info("Client connected");
+        } catch (IOException e) {
+            logger.severe("Unknown IO exception while starting a server connection");
+            throw new RuntimeException(e);
+        }
+        while (working) {
             try {
-                CommandRequest commandRequest = connector.nextCommand(2000);
+                AbstractCommandRequest commandRequest;
+                try {
+                    commandRequest = serverConnector.getCommand();
+                } catch (ClientDisconnectedException e) {
+                    logger.info("Client has disconnected by issuing the exit command");
+                    working = false;
+                    continue;
+                } catch (EOFException e) {
+                    // for unexpected client disconnects
+                    logger.warning("The client connection has been closed abruptly.");
+                    working = false;
+                    continue;
+                } catch (IOException e) {
+                    logger.severe("Unknown IO exception while getting client request");
+                    throw new RuntimeException(e);
+                }
+                // processing the requested command
                 if (commandRequest != null) {
-                    Logging.log(Level.INFO, "New comamnd requested: " + commandRequest.getCommandName());
+                    logger.info("New command requested: " + commandRequest.getCommandName());
                     Command command = commands.get(commandRequest.getCommandName());
                     if (command instanceof ArgumentCommand) {
                         ((ArgumentCommand) command).passArgument(((ArgumentCommandRequest) commandRequest).getArgument());
@@ -85,22 +117,40 @@ public class Server {
                         ((ElementCommand) command).passElement(commandRequest.getElement().build());
                     }
                     String commandResult = command.run();
-                    Logging.log(Level.INFO, "Command " + command.getName() + " was executed without errors.");
-                    if (connector.checkIfConnectionClosed()) {
-                        connector.stopConnection();
-                        working = false;
+                    addToHistory(command.getName());
+                    logger.info(String.format("Command \"%s\" was executed successfully", command.getName()));
+                    try {
+                        serverConnector.sendResponse(commandResult);
+                    } catch (IOException e) {
+                        logger.severe("Unknown IO exception while sending the client response");
+                        throw new RuntimeException(e);
                     }
-                    connector.sendResponse(commandResult);
-                    Logging.log(Level.INFO, "Response to command " + command.getName() + "was sent.");
+                    logger.info("Response to the command " + command.getName() + " was sent");
                 }
-
             } catch (ElementException e) {
-                Logging.log(Level.WARNING, "Error with element: " + e.getMessage());
-            } catch (TimeoutException e) {
-                connector.stopConnection();
-                working = false;
+                logger.warning("Error with element: " + e.getMessage());
+                try {
+                    serverConnector.sendResponse("Element exception: " + e.getMessage());
+                } catch (IOException x) {
+                    System.out.println("Unknown IO exception while reporting element exception");
+                    throw new RuntimeException(x);
+                }
             }
         }
-        Logging.log(Level.INFO, "Client disconnected");
+        try {
+            serverConnector.stopConnection();
+            logger.info("Client disconnected");
+        } catch (IOException e) {
+            logger.severe("Unknown IO exception while closing the server connection");
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void addToHistory(String command) {
+        if (history.size() == 15) {
+            // if the capacity reaches 15, remove the oldest element
+            history.removeFirst();
+        }
+        history.add(command);
     }
 }

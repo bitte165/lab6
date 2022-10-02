@@ -1,71 +1,61 @@
 package ru.bitte.lab6.server;
 
-import ru.bitte.lab6.ArgumentCommandRequest;
-import ru.bitte.lab6.CommandRequest;
+import ru.bitte.lab6.AbstractCommandRequest;
+import ru.bitte.lab6.exceptions.ClientDisconnectedException;
 
 import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.Optional;
-import java.util.concurrent.TimeoutException;
-import java.util.logging.Level;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 
 public class ServerConnector {
-    private ServerSocket serverSocket;
-    private Socket clientSocket;
-    private PrintWriter out;
-    private ObjectInputStream in;
+    private ServerSocketChannel serverSocket;
+    private SocketChannel clientSocket;
 
-    public void startConnection(int port){
-        try {
-            serverSocket = new ServerSocket(port);
-            clientSocket = serverSocket.accept();
-            Logging.log(Level.INFO, "Connection was accepted.");
-            out = new PrintWriter(clientSocket.getOutputStream(), true);
-            in = new ObjectInputStream(new BufferedInputStream(clientSocket.getInputStream()));
-        } catch (IOException e){
-            Logging.log(Level.WARNING, "Exception during connection starting: " + e.getMessage());
-            throw new RuntimeException(e);
+    public ServerConnector(int port) throws IOException {
+        serverSocket = ServerSocketChannel.open();
+        serverSocket.bind(new InetSocketAddress(port));
+    }
+
+    public void startConnection() throws IOException {
+        clientSocket = serverSocket.accept();
+    }
+
+    public AbstractCommandRequest getCommand() throws IOException, ClientDisconnectedException {
+        ByteBuffer header = ByteBuffer.allocate(4);
+        clientSocket.read(header);
+        int bodySize = header.getInt(0);
+        if (bodySize == 0 && clientSocket.socket().getInputStream().available() == 0) {
+            throw new ClientDisconnectedException("Client has exited");
         }
+        ByteBuffer body = ByteBuffer.allocate(bodySize);
+        clientSocket.read(body);
+        return (AbstractCommandRequest) bytesToObject(body.array());
     }
 
-    public CommandRequest nextCommand(int timeout) throws TimeoutException {
-        CommandRequest result = null;
-        try {
-            while(result == null) {
-                result = (CommandRequest) in.readObject();
-                timeout--;
-                if(timeout < 0){
-                    throw new TimeoutException("Reading time is out");
-                }
-            }
-        } catch (IOException | ClassNotFoundException e){
-            Logging.log(Level.WARNING, "Exception during nextCommand " + e.getMessage());
-            throw new RuntimeException(e);
+    public void sendResponse(String str) throws IOException {
+        byte[] stringBytes = str.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer stringHeader = ByteBuffer.allocate(4).putInt(stringBytes.length);
+        stringHeader.flip();
+        clientSocket.write(stringHeader);
+        clientSocket.write(ByteBuffer.wrap(stringBytes));
+    }
+
+    public void stopConnection() throws IOException {
+        clientSocket.close();
+    }
+
+    private Object bytesToObject(byte[] bytes) throws IOException {
+        ObjectInputStream out;
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(bytes)){
+            out = new ObjectInputStream(bis);
+            return out.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e.getMessage());
         }
-        Logging.log(Level.INFO, "Received command: " + result.getCommandName()+ " "
-                + Optional.of(((ArgumentCommandRequest) result).getArgument()).orElse("") + ".");
-        return result;
-    }
-
-    public void sendResponse(String str){
-        out.println(str);
-        Logging.log(Level.INFO, "Message '" + str + "' was sent.");
-    }
-
-    public void stopConnection() {
-        try {
-            in.close();
-            out.close();
-            clientSocket.close();
-            serverSocket.close();
-            Logging.log(Level.INFO, "Connection was closed.");
-        } catch (IOException e){
-            Logging.log(Level.WARNING, "Failed to stopConnection");
-        }
-    }
-
-    public boolean checkIfConnectionClosed(){
-        return serverSocket.isClosed();
     }
 }

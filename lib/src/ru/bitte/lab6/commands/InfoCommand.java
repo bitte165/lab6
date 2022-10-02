@@ -35,6 +35,6 @@ public class InfoCommand extends Command {
         output.append("Number of elements: " + collection.getCollectionSize() + "\n");
         output.append("Max distance: " + Collections.max(elements).toString() + "\n");
         output.append("Min distance: " + Collections.min(elements).toString() + "\n");
-        return output.toString();
+        return output.toString().strip();
     }
 }

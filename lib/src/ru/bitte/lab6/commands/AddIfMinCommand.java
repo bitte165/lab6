@@ -33,7 +33,7 @@ public class AddIfMinCommand extends ElementCommand {
         Route min = Collections.min(collection.copySorted());
         if (getElement().getDistance() < min.getDistance()) {
             collection.addElement(Objects.requireNonNull(getElement()));
-            output.append(String.format("Added %s to the collection\n", getElement().getName()));
+            output.append(String.format("Added %s to the collection", getElement().getName()));
         } else {
             output.append("Didn't add the element since its distance value was greater than " +
                     "the minimum one in the collection");

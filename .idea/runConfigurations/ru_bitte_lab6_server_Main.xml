@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="ru.bitte.lab6.server.Main" type="Application" factoryName="Application" nameIsGenerated="true">
+    <option name="MAIN_CLASS_NAME" value="ru.bitte.lab6.server.Main" />
+    <module name="lab6" />
+    <option name="PROGRAM_PARAMETERS" value="-f file.xml -p 25565" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="ru.bitte.lab6.server.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

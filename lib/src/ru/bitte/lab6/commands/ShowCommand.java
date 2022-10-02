@@ -1,6 +1,9 @@
 package ru.bitte.lab6.commands;
 
+import ru.bitte.lab6.route.Route;
 import ru.bitte.lab6.server.CollectionKeeper;
+
+import java.util.Comparator;
 
 /**
  * An object of this class is used in {@code Terminal} as a command that outputs all the elements in the maintained
@@ -23,7 +26,7 @@ public class ShowCommand extends Command {
     @Override
     public String run() {
         StringBuilder output = new StringBuilder();
-        collection.copyCollection().forEach(x -> output.append(x).append("\n"));
-        return output.toString();
+        collection.copyCollection().stream().sorted(Comparator.comparing(Route::getName)).forEach(x -> output.append(x).append("\n"));
+        return output.toString().strip();
     }
 }

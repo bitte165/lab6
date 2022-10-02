@@ -4,7 +4,6 @@ import ru.bitte.lab6.server.CollectionKeeper;
 import ru.bitte.lab6.route.Route;
 
 import java.util.List;
-import java.util.Scanner;
 
 /**
  * An object of this class is used in {@code Terminal} as a command that the elements of the collection the distance of
@@ -38,20 +37,7 @@ public class RemoveGreaterCommand extends ElementCommand {
                 collection.removeElement(element);
             }
         }
-        return String.format("Successfully removed %d elements.\n", n);
-//        System.out.printf("Are you sure you want to remove %d elements from the collection? [Y/n]: ", n);
-//        String response = in.nextLine();
-//        if (response.equals("Y")) {
-//            // removes the elements
-//            for (Route element : collection.copyCollection()) {
-//                if (greaterElements.contains(element)) {
-//                    collection.removeElement(element);
-//                }
-//            }
-//            System.out.printf();
-//        } else {
-//            System.out.println("Canceled the command.");
-//        }
+        return String.format("Successfully removed %d elements.", n);
     }
 }
 

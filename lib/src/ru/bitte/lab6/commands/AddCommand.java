@@ -27,6 +27,6 @@ public class AddCommand extends ElementCommand {
     @Override
     public String run() {
         collection.addElement(Objects.requireNonNull(getElement()));
-        return String.format("Added %s to the collection\n", getElement().getName());
+        return String.format("Added %s to the collection", getElement().getName());
     }
 }

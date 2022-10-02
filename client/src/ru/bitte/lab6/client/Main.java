@@ -1,15 +1,23 @@
 package ru.bitte.lab6.client;
 
-import ru.bitte.lab6.exceptions.CommandParsingException;
-import ru.bitte.lab6.exceptions.ElementConstructionException;
-
-import java.util.Optional;
-
 public class Main {
-    public static void main(String[] args) throws ElementConstructionException, CommandParsingException {
-        String host = Optional.ofNullable(System.getenv("HOST")).orElseThrow(() -> new RuntimeException("sex"));
-        int port = Integer.parseInt(System.getenv("PORT"));
-        ClientTerminal client = new ClientTerminal(host, port);
-        client.start();
+    public static void main(String[] args) {
+        String usage = "Usage: client.jar -h [host address] -p [port]";
+        String hostName = null;
+        int port = 0;
+        if (args[0].equals("-h") && args[2].equals("-p") && args.length == 4) {
+            try {
+                hostName = args[1];
+                port = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                System.out.println(usage);
+                System.exit(0);
+            }
+        } else {
+            System.out.println(usage);
+            System.exit(0);
+        }
+        ClientTerminal client = new ClientTerminal();
+        client.start(hostName, port);
     }
 }

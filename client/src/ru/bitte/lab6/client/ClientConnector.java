@@ -1,113 +1,53 @@
 package ru.bitte.lab6.client;
 
-import ru.bitte.lab6.CommandRequest;
+import ru.bitte.lab6.AbstractCommandRequest;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.net.InetSocketAddress;
+import java.io.*;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
-import java.util.Iterator;
-import java.util.Set;
+import java.nio.charset.StandardCharsets;
 
 public class ClientConnector {
-    private InetSocketAddress address;
-    private SocketChannel serverChannel;
-    private Selector selector;
+    private Socket socket;
+    private OutputStream out;
+    private InputStream in;
 
-    public ClientConnector(String host, int serverPort) {
-        address = new InetSocketAddress(host, serverPort);
+    public void startConnection(String host, int port) throws IOException {
+        socket = new Socket(host, port);
+        out = socket.getOutputStream();
+        in = socket.getInputStream();
     }
 
-    public void startConnection() {
-        try {
-            selector = Selector.open();
-            serverChannel = SocketChannel.open();
-            serverChannel.configureBlocking(false);
-            serverChannel.register(selector, SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-            serverChannel.connect(address);
-            while (true) {
-                selector.select();
-                Set<SelectionKey> keys = selector.selectedKeys();
-                for (Iterator<SelectionKey> iter = keys.iterator(); iter.hasNext();) {
-                    SelectionKey key = iter.next();
-                    iter.remove();
-                    if (key.isValid() && key.isConnectable()) {
-                        SocketChannel channel = (SocketChannel) key.channel();
-                        if (channel.isConnectionPending()) {
-                            channel.finishConnect();
-                        }
-                        return;
-                    }
-
-                }
-
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public void sendRequest(AbstractCommandRequest request) throws IOException {
+        var out = socket.getOutputStream();
+        byte[] body = objectToBytes(request);
+        byte[] header = ByteBuffer.allocate(4).putInt(body.length).array();
+        out.write(header);
+        out.write(body);
     }
 
-    public void sendRequest(CommandRequest request) {
-        try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            ObjectOutputStream os = new ObjectOutputStream(bos);
-            os.writeObject(request);
-            ByteBuffer outBuffer = ByteBuffer.wrap(bos.toByteArray());
-            while (true) {
-                selector.select();
-                Set<SelectionKey> keys = selector.selectedKeys();
-                for (Iterator<SelectionKey> iter = keys.iterator(); iter.hasNext();) {
-                    SelectionKey key = iter.next();
-                    iter.remove();
-                    if (key.isValid() && key.isWritable()) {
-                        SocketChannel channel = (SocketChannel) key.channel();
-                        channel.write(outBuffer);
-                        if (outBuffer.remaining() < 1) {
-                            return;
-                        }
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public String receiveResponse() throws IOException {
+        byte[] header = in.readNBytes(4);
+        int bodySize = ByteBuffer.wrap(header).getInt();
+        byte[] body = in.readNBytes(bodySize);
+        return new String(body, StandardCharsets.UTF_8);
     }
 
-    public String receiveResponse() {
-        try {
-            while (true) {
-                selector.select();
-                ByteBuffer buffer = ByteBuffer.allocate(1024);
-                Set<SelectionKey> selectedKeys = selector.selectedKeys();
-                for (Iterator<SelectionKey> iter = selectedKeys.iterator(); iter.hasNext();) {
-                    SelectionKey selectionKey = iter.next();
-                    if (selectionKey.isReadable()) {
-                        SocketChannel clientSocketChannel = (SocketChannel) selectionKey.channel();
-                        StringBuilder message = new StringBuilder();
-                        while (clientSocketChannel.read(buffer) > 0){
-                            message.append(new String(buffer.array(), 0, buffer.position()));
-                            buffer.compact();
-                        }
-                        return message.toString();
-                    }
-                    iter.remove();
-                }
-            }
-        } catch (IOException e) {
-            System.out.println("c");
-        }
-        return null;
+    public void stopConnection() throws IOException {
+        byte[] endBytes = new byte[] {0, 0, 0, 0};
+        out.write(endBytes);
+        in.close();
+        out.close();
+        socket.close();
     }
 
-    public void stopConnection() {
-        try {
-            serverChannel.close();
-        } catch (IOException e) {
-            System.out.println("well");
+    private byte[] objectToBytes(Object object) throws IOException {
+        ObjectOutputStream out;
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            out = new ObjectOutputStream(bos);
+            out.writeObject(object);
+            out.flush();
+            return bos.toByteArray();
         }
     }
 }

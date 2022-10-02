@@ -31,6 +31,6 @@ public class PrintAscendingCommand extends Command {
         for (Route element : mirror) {
             output.append(element.format()).append("\n");
         }
-        return output.toString();
+        return output.toString().strip();
     }
 }

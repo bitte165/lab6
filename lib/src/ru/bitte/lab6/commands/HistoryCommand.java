@@ -25,6 +25,6 @@ public class HistoryCommand extends Command {
         StringBuilder output = new StringBuilder();
         System.out.println("Last 15 used commands:");
         history.forEach((x) -> output.append(x + "\n"));
-        return output.toString();
+        return output.toString().strip();
     }
 }

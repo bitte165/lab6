@@ -48,7 +48,7 @@ public class HelpCommand extends Command {
             }
         }
         output.append("Note: the \"{element}\" commands should not be provided an element argument. Instead, " +
-                "an element constructor is called.\n");
+                "an element constructor is called.");
         return output.toString();
     }
 }

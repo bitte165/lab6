@@ -2,7 +2,6 @@ package ru.bitte.lab6;
 
 import ru.bitte.lab6.exceptions.CommandParsingException;
 import ru.bitte.lab6.exceptions.ElementConstructionException;
-import ru.bitte.lab6.exceptions.ElementException;
 import ru.bitte.lab6.route.Coordinates;
 import ru.bitte.lab6.route.Location;
 import ru.bitte.lab6.route.Route;
@@ -13,39 +12,25 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CommandRequest implements Serializable {
-    private final String commandName;
-    private boolean needsElement;
-    private Route.RouteBuilder element = null;
-
+public class CommandRequest extends AbstractCommandRequest implements Serializable {
     protected static final Set<String> nonArgCommands = Set.of("help", "info", "show", "add", "clear", "save", "exit",
             "add_if_min", "remove_greater", "history", "print_ascending", "print_unique_distance");
 
     protected static final Set<String> elementCommands = Set.of("add", "update", "add_if_min", "remove_greater");
 
     public CommandRequest(String name) throws CommandParsingException, ElementConstructionException {
-        if (nonArgCommands.contains(name)) {
-            commandName = name;
-        } else {
+        super(name);
+        if (ArgumentCommandRequest.argComamnds.contains(name)) {
+            throw new CommandParsingException("Incorrect command usage. Please see \"help\" on command usage.");
+        } else if (!nonArgCommands.contains(name)) {
             throw new CommandParsingException("Unknown command. Please see \"help\" for the list of commands.");
         }
         if (elementCommands.contains(name)) {
-            element = generateElement();
+            setElement(generateElement());
         }
     }
 
-    public String getCommandName() {
-        return commandName;
-    }
-
-    public Route.RouteBuilder getElement() throws ElementException {
-        if (element == null) {
-            throw new ElementException("Can't get this command's element - it doesn't require one!");
-        }
-        return element;
-    }
-
-    protected Route.RouteBuilder generateElement() throws ElementConstructionException {
+    public static Route.RouteBuilder generateElement() throws ElementConstructionException {
         Route.RouteBuilder route = new Route.RouteBuilder();
         Scanner in = new Scanner(System.in);
         System.out.println("Assembling a Route object...");
@@ -55,7 +40,7 @@ public class CommandRequest implements Serializable {
         route.addName(name);
         // get coordinates
         Coordinates coords;
-        Pattern coordPattern = Pattern.compile("^([\\d]+),[\\s]+([\\d]+)[^\\S\\r\\n]*$");
+        Pattern coordPattern = Pattern.compile("^([\\d]+),[\\s]*([\\d]+)[^\\S\\r\\n]*$");
         System.out.println("Enter X and Y coordinates of the current position separated by a comma:");
         String coordInput = in.nextLine();
         Matcher coordMatch = coordPattern.matcher(coordInput);
@@ -79,8 +64,8 @@ public class CommandRequest implements Serializable {
         return route;
     }
 
-    private Location generateLocation(Scanner in, String kind) throws ElementConstructionException {
-        Pattern locPattern = Pattern.compile("^([\\d]+),[\\s]+([\\d]+),[\\s]+([0-9]+(?:\\.[0-9]+)?)[^\\S\\r\\n]*$");
+    private static Location generateLocation(Scanner in, String kind) throws ElementConstructionException {
+        Pattern locPattern = Pattern.compile("^([\\d]+),[\\s]*([\\d]+),[\\s]*([0-9]+(?:\\.[0-9]+)?)[^\\S\\r\\n]*$");
         System.out.printf("Enter X, Y and Z coordinates of the \"%s\" point separated by a comma:\n", kind);
         String locInput = in.nextLine();
         Matcher locMatch = locPattern.matcher(locInput);

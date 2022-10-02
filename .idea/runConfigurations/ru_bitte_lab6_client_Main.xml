@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="ru.bitte.lab6.client.Main" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="ru.bitte.lab6.client.Main" />
+    <module name="lab6" />
+    <option name="PROGRAM_PARAMETERS" value="-h localhost -p 25565" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
