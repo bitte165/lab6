@@ -19,7 +19,7 @@ public class ServerConnector {
     private Selector selector;
     private ServerSocketChannel serverSocket;
     private final int port;
-    private Scanner in;
+    private final Scanner in;
 
     public ServerConnector(int port) throws IOException {
         this.port = port;
@@ -77,8 +77,7 @@ public class ServerConnector {
                     ByteBuffer body = ByteBuffer.allocate(bodySize);
                     channel.read(body);
                     byte[] bodyBytes = body.array();
-                    byte[] empty = new byte[bodyBytes.length];
-                    while (Arrays.equals(bodyBytes, empty)) {
+                    while (Arrays.equals(bodyBytes, new byte[bodyBytes.length])) {
                         body.clear();
                         channel.read(body);
                     }

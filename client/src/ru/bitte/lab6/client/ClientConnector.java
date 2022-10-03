@@ -13,9 +13,6 @@ public class ClientConnector {
     private OutputStream out;
     private InputStream in;
 
-    public boolean isConnected() {
-        return socket.isConnected();
-    }
 
     public void startConnection(String host, int port) throws IOException {
         socket = new Socket(host, port);
