@@ -11,43 +11,111 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Scanner;
+import java.util.Set;
 
 public class ServerConnector {
+    private Selector selector;
     private ServerSocketChannel serverSocket;
-    private SocketChannel clientSocket;
+    private final int port;
+    private Scanner in;
 
     public ServerConnector(int port) throws IOException {
-        serverSocket = ServerSocketChannel.open();
-        serverSocket.bind(new InetSocketAddress(port));
+        this.port = port;
+        in = new Scanner(System.in);
     }
 
-    public void startConnection() throws IOException {
-        clientSocket = serverSocket.accept();
+    public void startConnection() throws Exception {
+        serverSocket = ServerSocketChannel.open();
+        serverSocket.bind(new InetSocketAddress(port));
+        serverSocket.configureBlocking(false);
+        selector = Selector.open();
+        serverSocket.register(selector, serverSocket.validOps(), null);
+        while (true) {
+            System.out.print("Should I exit [Y]? (Only works if no client has connected): ");
+            String response = in.nextLine();
+            if (response.equals("Y")) {
+                throw new Exception("Y");
+            }
+            int count = selector.select();
+            if (count == 0) {
+                continue;
+            }
+            Set<SelectionKey> keys = selector.selectedKeys();
+            for (var iter = keys.iterator(); iter.hasNext();) {
+                SelectionKey key = iter.next();
+                iter.remove();
+                if (key.isAcceptable()) {
+                    SocketChannel client = serverSocket.accept();
+                    client.configureBlocking(false);
+                    client.register(selector, SelectionKey.OP_WRITE | SelectionKey.OP_READ);
+                    return;
+                }
+            }
+        }
     }
 
     public AbstractCommandRequest getCommand() throws IOException, ClientDisconnectedException {
-        ByteBuffer header = ByteBuffer.allocate(4);
-        clientSocket.read(header);
-        int bodySize = header.getInt(0);
-        if (bodySize == 0 && clientSocket.socket().getInputStream().available() == 0) {
-            throw new ClientDisconnectedException("Client has exited");
+        while (true) {
+            int count = selector.select();
+            if (count == 0) {
+                continue;
+            }
+            Set<SelectionKey> keys = selector.selectedKeys();
+            for (var iter = keys.iterator(); iter.hasNext(); ) {
+                SelectionKey key = iter.next();
+                iter.remove();
+                if (key.isReadable()) {
+                    SocketChannel channel = (SocketChannel) key.channel();
+                    ByteBuffer header = ByteBuffer.allocate(4);
+                    channel.read(header);
+                    int bodySize = header.getInt(0);
+                    if (bodySize == 0 && channel.socket().getInputStream().available() == 0) {
+                        throw new ClientDisconnectedException("Client has exited");
+                    }
+                    ByteBuffer body = ByteBuffer.allocate(bodySize);
+                    channel.read(body);
+                    byte[] bodyBytes = body.array();
+                    byte[] empty = new byte[bodyBytes.length];
+                    while (Arrays.equals(bodyBytes, empty)) {
+                        body.clear();
+                        channel.read(body);
+                    }
+                    return (AbstractCommandRequest) bytesToObject(bodyBytes);
+                }
+            }
         }
-        ByteBuffer body = ByteBuffer.allocate(bodySize);
-        clientSocket.read(body);
-        return (AbstractCommandRequest) bytesToObject(body.array());
     }
 
     public void sendResponse(String str) throws IOException {
-        byte[] stringBytes = str.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer stringHeader = ByteBuffer.allocate(4).putInt(stringBytes.length);
-        stringHeader.flip();
-        clientSocket.write(stringHeader);
-        clientSocket.write(ByteBuffer.wrap(stringBytes));
+        while (true) {
+            int count = selector.select();
+            if (count == 0) {
+                continue;
+            }
+            Set<SelectionKey> keys = selector.selectedKeys();
+            for (var iter = keys.iterator(); iter.hasNext(); ) {
+                SelectionKey key = iter.next();
+                iter.remove();
+                if (key.isValid() && key.isWritable()) {
+                    SocketChannel channel = (SocketChannel) key.channel();
+                    byte[] stringBytes = str.getBytes(StandardCharsets.UTF_8);
+                    ByteBuffer stringHeader = ByteBuffer.allocate(4).putInt(stringBytes.length);
+                    stringHeader.flip();
+                    channel.write(stringHeader);
+                    channel.write(ByteBuffer.wrap(stringBytes));
+                    return;
+                }
+            }
+        }
     }
 
     public void stopConnection() throws IOException {
-        clientSocket.close();
+        selector.close();
+        serverSocket.close();
     }
+
 
     private Object bytesToObject(byte[] bytes) throws IOException {
         ObjectInputStream out;

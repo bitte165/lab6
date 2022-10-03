@@ -6,11 +6,16 @@ import java.io.*;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class ClientConnector {
     private Socket socket;
     private OutputStream out;
     private InputStream in;
+
+    public boolean isConnected() {
+        return socket.isConnected();
+    }
 
     public void startConnection(String host, int port) throws IOException {
         socket = new Socket(host, port);
@@ -21,6 +26,7 @@ public class ClientConnector {
     public void sendRequest(AbstractCommandRequest request) throws IOException {
         var out = socket.getOutputStream();
         byte[] body = objectToBytes(request);
+        System.out.println(Arrays.toString(body));
         byte[] header = ByteBuffer.allocate(4).putInt(body.length).array();
         out.write(header);
         out.write(body);

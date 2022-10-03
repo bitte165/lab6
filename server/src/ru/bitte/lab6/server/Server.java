@@ -14,6 +14,7 @@ import javax.xml.transform.TransformerException;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.io.StreamCorruptedException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -28,10 +29,10 @@ public class Server {
     private final Parser parser = new Parser();
     private final Map<String, Command> commands;
     private final Deque<String> history;
-    private final ServerConnector serverConnector;
+    private ServerConnector serverConnector;
     private final Logger logger;
 
-    public Server(String fileName, int port)
+    public Server(String fileName)
             throws TransformerConfigurationException, ParserConfigurationException, ElementParsingInFileException,
             IOException, SAXException {
 //        in = new Scanner(System.in);
@@ -56,7 +57,7 @@ public class Server {
         tempComs.add(new UpdateCommand(collection));
         tempComs.forEach(command -> commands.put(command.getName(), command));
         // initialize the server
-        serverConnector = new ServerConnector(port);
+
         // initialize logging
         logger = Logger.getLogger("ru.bitte.lab6.server");
         String logFile = String.format("server_instance_%s.txt",
@@ -66,17 +67,25 @@ public class Server {
         logger.addHandler(logHandler);
     }
 
-    public void start() throws TransformerException {
+    public void start(int port) throws TransformerException {
+        try {
+            serverConnector = new ServerConnector(port);
+        } catch (IOException e) {
+            logger.severe("Unknown IO exception while starting server");
+            throw new RuntimeException(e);
+        }
         logger.info("Starting the server...");
         boolean working = true;
         while (working) {
-            newClient();
+            working = newClient();
         }
-        parser.writeToFile(collection.copyCollection(), new File("collectionSavedAt" + LocalDateTime.now()));
+        parser.writeToFile(collection.copyCollection(), new File("collectionSavedAt"
+                + LocalDateTime.now().format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM))
+                .replace(":", "-").replace(" ", "_")));
 
     }
 
-    private void newClient() {
+    private boolean newClient() {
         boolean working = true;
         try {
             serverConnector.startConnection();
@@ -84,6 +93,12 @@ public class Server {
         } catch (IOException e) {
             logger.severe("Unknown IO exception while starting a server connection");
             throw new RuntimeException(e);
+        } catch (Exception e) {
+            if (e.getMessage().equals("Y")) {
+                return false;
+            } else {
+                throw new RuntimeException(e);
+            }
         }
         while (working) {
             try {
@@ -99,34 +114,44 @@ public class Server {
                     logger.warning("The client connection has been closed abruptly.");
                     working = false;
                     continue;
+//                } catch (StreamCorruptedException e) {
+//                    logger.warning("Error reading the client request");
+//
+//                    try {
+//                        serverConnector.sendResponse("Error");
+//                    } catch (IOException x) {
+//                        logger.severe("Fuck");
+//                        throw new RuntimeException(e);
+//                    }
+//                    continue;
                 } catch (IOException e) {
                     logger.severe("Unknown IO exception while getting client request");
                     throw new RuntimeException(e);
                 }
                 // processing the requested command
-                if (commandRequest != null) {
-                    logger.info("New command requested: " + commandRequest.getCommandName());
-                    Command command = commands.get(commandRequest.getCommandName());
-                    if (command instanceof ArgumentCommand) {
-                        ((ArgumentCommand) command).passArgument(((ArgumentCommandRequest) commandRequest).getArgument());
-                    }
-                    if (command instanceof IDCommand) {
-                        ((IDCommand) command).passID(Integer.parseInt(((ArgumentCommandRequest) commandRequest).getArgument()));
-                    }
-                    if (command instanceof ElementCommand) {
-                        ((ElementCommand) command).passElement(commandRequest.getElement().build());
-                    }
-                    String commandResult = command.run();
-                    addToHistory(command.getName());
-                    logger.info(String.format("Command \"%s\" was executed successfully", command.getName()));
-                    try {
-                        serverConnector.sendResponse(commandResult);
-                    } catch (IOException e) {
-                        logger.severe("Unknown IO exception while sending the client response");
-                        throw new RuntimeException(e);
-                    }
-                    logger.info("Response to the command " + command.getName() + " was sent");
+//                if (commandRequest != null) {
+                logger.info("New command requested: " + commandRequest.getCommandName());
+                Command command = commands.get(commandRequest.getCommandName());
+                if (command instanceof ArgumentCommand) {
+                    ((ArgumentCommand) command).passArgument(((ArgumentCommandRequest) commandRequest).getArgument());
                 }
+                if (command instanceof IDCommand) {
+                    ((IDCommand) command).passID(Integer.parseInt(((ArgumentCommandRequest) commandRequest).getArgument()));
+                }
+                if (command instanceof ElementCommand) {
+                    ((ElementCommand) command).passElement(commandRequest.getElement().build());
+                }
+                String commandResult = command.run();
+                addToHistory(command.getName());
+                logger.info(String.format("Command \"%s\" was executed successfully", command.getName()));
+                try {
+                    serverConnector.sendResponse(commandResult);
+                } catch (IOException e) {
+                    logger.severe("Unknown IO exception while sending the client response");
+                    throw new RuntimeException(e);
+                }
+                logger.info("Response to the command " + command.getName() + " was sent");
+//                }
             } catch (ElementException e) {
                 logger.warning("Error with element: " + e.getMessage());
                 try {
@@ -140,6 +165,7 @@ public class Server {
         try {
             serverConnector.stopConnection();
             logger.info("Client disconnected");
+            return true;
         } catch (IOException e) {
             logger.severe("Unknown IO exception while closing the server connection");
             throw new RuntimeException(e);

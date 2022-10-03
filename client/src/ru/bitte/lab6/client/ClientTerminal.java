@@ -23,7 +23,7 @@ public class ClientTerminal {
         try {
             connector.startConnection(host, port);
         } catch (IOException e) {
-            System.out.println("Uknown IO exception while starting server connection");
+            System.out.println("Unknown IO exception while starting server connection");
             throw new RuntimeException(e);
         }
         boolean active = true;

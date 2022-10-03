@@ -10,23 +10,32 @@ import java.io.IOException;
 
 public class Main {
     public static void main(String[] args) {
+        String usage = "Usage: server.jar -f [collection file] -p [port]";
+        String fileName = null;
+        int port = 0;
+        if (args[0].equals("-f") && args[2].equals("-p") && args.length == 4) {
+            try {
+                fileName = args[1];
+                port = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                System.out.println(usage);
+                System.exit(0);
+            }
+        } else {
+            System.out.println(usage);
+            System.exit(0);
+        }
         try {
-            String collection = System.getenv("COLLECTION");
-            int port = Integer.parseInt(System.getenv("PORT"));
-            Server server = new Server(collection, port);
-            server.start();
-        } catch (TransformerConfigurationException e) {
-            throw new RuntimeException(e);
+            Server server = new Server(fileName);
+            server.start(port);
         } catch (ElementParsingInFileException e) {
-            throw new RuntimeException(e);
-        } catch (ParserConfigurationException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (SAXException e) {
-            throw new RuntimeException(e);
+            System.out.println("Problem parsing objects from the file: " + e.getMessage());
+        } catch (ParserConfigurationException | TransformerConfigurationException e) {
+            System.out.println("Configuration error: " + e.getMessage());
+        } catch (IOException | SAXException e) {
+            System.out.println("Error reading from a file: " + e.getMessage());
         } catch (TransformerException e) {
-            throw new RuntimeException(e);
+            System.out.println(e.getMessage());
         }
     }
 }
